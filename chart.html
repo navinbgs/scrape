@@ -100,18 +100,12 @@
 <script>
     const FUND_US_OBLIGATIONS = {
         'VMSXX': 0,    // Placeholder value
-        'FSJXX': 0,    // Placeholder value
-        'FTEXX': 0,  // Placeholder value
-        'SPAXX': 56,   // Placeholder value
         'VUSXX': 100,   // Placeholder value
         'VMFXX': 63    // Placeholder value
     };
 
     const fundTypes = {
         'VMSXX': 'Federal Tax-Exempt',
-        'FSJXX': 'Federal and State Tax-Exempt',
-        'FTEXX': 'Federal Tax-Exempt',
-        'SPAXX': 'Taxable',
         'VUSXX': 'Taxable',
         'VMFXX': 'Taxable'
     };
@@ -198,7 +192,7 @@
         const filteredHistory = filterDataByRange(rawHistory, currentTimeRange);
         const dates = Object.keys(filteredHistory).sort();
 
-        const fundList = ['SPAXX', 'VUSXX', 'VMSXX', 'VMFXX', 'FTEXX', 'FSJXX'];
+        const fundList = ['VUSXX', 'VMSXX', 'VMFXX'];
         const fundSeries = {};
 
         fundList.forEach(fund => fundSeries[fund] = []);
