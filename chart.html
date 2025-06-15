@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Fund Yield Chart</title>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Text:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f2f2f7;
+            color: #1c1c1e;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    
+        .container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    
+        h1 {
+            font-size: 2.0em;
+            text-align: center;
+            margin-bottom: 1.5em;
+            font-weight: 600;
+        }
+    
+        .chart-controls {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap to the next line */
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+    
+        .chart-controls button {
+            padding: 8px 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            color: #333;
+            cursor: pointer;
+            font-size: 0.9em;
+            flex-grow: 1; /* Distribute available space */
+            min-width: 80px; /* Ensure a minimum width for readability */
+        }
+    
+        .chart-controls button.active {
+            background-color: #007aff;
+            color: white;
+            border-color: #007aff;
+        }
+    
+        #yieldChart {
+            width: 100%;
+            max-height: 400px;
+        }
+    
+        .back-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #e0e0e0;
+            color: #333;
+            font-size: 1.0em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 500;
+            box-sizing: border-box; /* Ensure padding doesn't add to the width */
+        }
+    
+        .back-button:active {
+            background-color: #d1d1d1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fund Yield Over Time</h1>
+        <div class="chart-controls">
+            <button onclick="changeTimeRange('week')" data-range="week">Last Week</button>
+            <button onclick="changeTimeRange('month')" data-range="month">Last Month</button>
+            <button onclick="changeTimeRange('quarter')" data-range="quarter">Last Quarter</button>
+            <button onclick="changeTimeRange('year')" data-range="year">Last Year</button>
+            <button onclick="changeTimeRange('all')" data-range="all" class="active">All Data</button>
+        </div>
+        <canvas id="yieldChart"></canvas>
+    </div>
+    <a href="index.html" class="back-button">Back to Calculator</a>
+<script>
+    const FUND_US_OBLIGATIONS = {
+        'VMSXX': 0,    // Placeholder value
+        'FSJXX': 0,    // Placeholder value
+        'FTEXX': 0,  // Placeholder value
+        'SPAXX': 56,   // Placeholder value
+        'VUSXX': 100,   // Placeholder value
+        'VMFXX': 63    // Placeholder value
+    };
+
+    const fundTypes = {
+        'VMSXX': 'Federal Tax-Exempt',
+        'FSJXX': 'Federal and State Tax-Exempt',
+        'FTEXX': 'Federal Tax-Exempt',
+        'SPAXX': 'Taxable',
+        'VUSXX': 'Taxable',
+        'VMFXX': 'Taxable'
+    };
+
+    let chart;
+    let currentTimeRange = 'all';
+
+    function changeTimeRange(range) {
+        currentTimeRange = range;
+        renderChart();
+
+        const buttons = document.querySelectorAll('.chart-controls button');
+        buttons.forEach(button => {
+            button.classList.remove('active');
+            if (button.dataset.range === range) {
+                button.classList.add('active');
+            }
+        });
+    }
+
+    function filterDataByRange(rawHistory, range) {
+        const dates = Object.keys(rawHistory).sort();
+        const today = new Date();
+        let startDate;
+
+        switch (range) {
+            case 'week':
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - 7);
+                break;
+            case 'month':
+                startDate = new Date(today);
+                startDate.setMonth(today.getMonth() - 1);
+                break;
+            case 'quarter':
+                startDate = new Date(today);
+                startDate.setMonth(today.getMonth() - 3);
+                break;
+            case 'year':
+                startDate = new Date(today);
+                startDate.setFullYear(today.getFullYear() - 1);
+                break;
+            case 'all':
+            default:
+                return rawHistory;
+        }
+
+        const filteredHistory = {};
+        const formattedStartDate = startDate.toISOString().slice(0, 10);
+
+        for (const date in rawHistory) {
+            if (date >= formattedStartDate) {
+                filteredHistory[date] = rawHistory[date];
+            }
+        }
+
+        return filteredHistory;
+    }
+
+    function calculateAfterTaxYield(yieldPercent, type, federalTax, stateTax, usObligations) {
+        const yieldDecimal = yieldPercent / 100;
+        const federalTaxDecimal = federalTax / 100;
+        const stateTaxDecimal = stateTax / 100;
+        const usObligationsDecimal = usObligations / 100;
+
+        switch (type) {
+            case 'Taxable':
+                return (yieldDecimal * (1 - usObligationsDecimal) * (1 - federalTaxDecimal - stateTaxDecimal) +
+                        yieldDecimal * usObligationsDecimal * (1 - federalTaxDecimal)) * 100;
+            case 'Federal Tax-Exempt':
+                return yieldDecimal * (1 - stateTaxDecimal) * 100;
+            case 'Federal and State Tax-Exempt':
+                return yieldPercent;
+            default:
+                return yieldPercent;
+        }
+    }
+
+    function renderChart() {
+        const rawHistory = JSON.parse(localStorage.getItem('fundYieldHistory') || '{}');
+        const federalTax = parseFloat(localStorage.getItem('federalTax') || '40.8') / 100;
+        const stateTax = parseFloat(localStorage.getItem('stateTax') || '10.75') / 100;
+
+        const filteredHistory = filterDataByRange(rawHistory, currentTimeRange);
+        const dates = Object.keys(filteredHistory).sort();
+
+        const fundList = ['SPAXX', 'VUSXX', 'VMSXX', 'VMFXX', 'FTEXX', 'FSJXX'];
+        const fundSeries = {};
+
+        fundList.forEach(fund => fundSeries[fund] = []);
+
+        dates.forEach(date => {
+            const records = filteredHistory[date];
+            const fundMap = Object.fromEntries(records.map(r => [r.ticker, r]));
+
+            fundList.forEach(fund => {
+                const entry = fundMap[fund];
+                if (!entry) {
+                    fundSeries[fund].push(null);
+                    return;
+                }
+
+                const yieldVal = parseFloat(entry.yield) / 100;
+                const usObligations = FUND_US_OBLIGATIONS[fund] || 0; // Get US obligations for the fund
+                const afterTaxYield = calculateAfterTaxYield(yieldVal * 100, fundTypes[fund], federalTax * 100, stateTax * 100, usObligations);
+
+                fundSeries[fund].push(afterTaxYield.toFixed(2));
+            });
+        });
+
+        if (chart) chart.destroy();
+
+        const ctx = document.getElementById('yieldChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: fundList.map((fund, i) => ({
+                    label: fund,
+                    data: fundSeries[fund],
+                    borderColor: `hsl(${(i * 60) % 360}, 70%, 50%)`,
+                    backgroundColor: 'transparent',
+                    tension: 0.3,
+                    spanGaps: true
+                }))
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'After-Tax Yield Over Time'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.raw}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'After-Tax Yield (%)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderChart();
+    });
+</script>
+</body>
+</html>
